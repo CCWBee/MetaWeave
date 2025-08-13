@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MetaWeave — YAML Metadata Comment Tagger (v2)</title>
+<style>
+  /*
+    v2 changes:
+    - Added theme toggle (dark/light) with localStorage persistence
+    - Improved contrast for text, gutters, borders
+    - Higher-contrast drop target indicator (cyan) instead of purple
+    - Stronger region highlights and thicker left rails
+  */
+  :root{
+    --bg:#0b0f17; --panel:#111726; --text:#eef2f7; --muted:#9aa4b8; --border:#2a3347; --chip:#151d2b; --hover:#1a2233;
+    --accent:#7c5cff; --accent2:#22d3ee; /* cyan */
+    --drop: var(--accent2); /* drop indicator */
+    --rail:#6ee7ff; /* assigned rail colour */
+    --code-bg:#0d1422;
+    --selection-bg: #1f2b42;
+  }
+  [data-theme="light"]{
+    --bg:#f6f8fc; --panel:#ffffff; --text:#0e1320; --muted:#5d667a; --border:#d8ddeb; --chip:#eef1f7; --hover:#e9edf6;
+    --accent:#5b43ff; --accent2:#0ea5a4; /* teal */
+    --drop: var(--accent2);
+    --rail:#0891b2;
+    --code-bg:#f7f9ff;
+    --selection-bg:#dfe7fb;
+  }
+  *{box-sizing:border-box}
+  ::selection{background:var(--selection-bg)}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.55 system-ui, -apple-system, Segoe UI, Inter, Roboto, Arial, sans-serif;
+    display:grid; grid-template-rows:auto 1fr auto; max-width:1200px; margin-inline:auto;
+  }
+  header{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,var(--panel),transparent); position:sticky; top:0; z-index:5;
+  }
+  .logo{display:flex; align-items:center; gap:10px; font-weight:700}
+  .badge{width:26px; height:26px; border-radius:8px; background:linear-gradient(135deg,var(--accent),var(--accent2)); display:grid; place-items:center; color:#fff}
+  .spacer{flex:1}
+  .btn{appearance:none; border:1px solid var(--border); background:var(--chip); color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer}
+  .btn:hover{background:var(--hover)}
+  .btn.brand{background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; color:#fff}
+  .btn.ghost{background:transparent}
+  main{display:grid; grid-template-columns:320px 1fr; min-height:0}
+  aside{border-right:1px solid var(--border); background:var(--panel); padding:12px; overflow:auto}
+  .section-title{font-size:12px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); margin:12px 0 8px}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .field{display:grid; gap:6px; margin:10px 0}
+  input[type="text"], input[type="file"], textarea, select{
+    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--code-bg); color:var(--text)
+  }
+  .hint{font-size:12px; color:var(--muted)}
+  .pill{
+    display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; border:1px solid var(--border);
+    background:var(--chip); user-select:none; cursor:grab; margin:4px 6px 0 0;
+  }
+  .pill .swatch{width:12px; height:12px; border-radius:3px; border:1px solid #0004}
+  .pill[draggable="true"]:active{cursor:grabbing}
+  .pill .x{opacity:.9; font-weight:700; cursor:pointer}
+  .bar{display:flex; flex-wrap:wrap; align-items:center}
+  .hr{height:1px; background:var(--border); margin:10px 0}
+  .editor{position:relative; overflow:auto; min-height:0; background:
+      radial-gradient(1200px 500px at 15% -10%, color-mix(in hsl,var(--accent) 12%, transparent), transparent),
+      radial-gradient(1000px 500px at 115% 0%, color-mix(in hsl,var(--accent2) 10%, transparent), transparent)}
+  .lines{counter-reset: line; padding:8px 0}
+  .line{display:grid; grid-template-columns:84px 1fr; align-items:stretch; min-height:24px}
+  .gutter{border-right:1px solid var(--border); color:var(--muted); padding:2px 8px; display:flex; align-items:center; gap:8px; background:transparent}
+  .lineno{font-variant-numeric: tabular-nums; font-size:12px; opacity:.85; width:40px}
+  .tagdot{width:12px; height:12px; border-radius:50%; border:2px solid #0006}
+  .taglabel{font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); background:var(--chip)}
+  .code{white-space:pre-wrap; padding:6px 12px; border-left:5px solid transparent; background:transparent}
+  .line.drop-target .code{outline:2px solid var(--drop); outline-offset:-2px; box-shadow: inset 0 0 0 9999px color-mix(in hsl, var(--drop) 10%, transparent); border-left-color: var(--drop)}
+  .line.assigned .code{background:linear-gradient(90deg, color-mix(in hsl,var(--rail) 14%, transparent), transparent 60%)}
+  .legend{display:flex; flex-wrap:wrap; gap:6px}
+  .warning{border:1px dashed #ef4444; color:#ffb4ba; background:#2a0f12; padding:10px 12px; border-radius:12px}
+  footer{border-top:1px solid var(--border); background:var(--panel); padding:8px 12px; font-size:12px; color:var(--muted)}
+  .status{color:var(--muted)}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; padding:0 6px; border:1px solid var(--border); border-radius:6px; background:var(--code-bg)}
+  .ghostlink{color:var(--muted); text-decoration:underline; cursor:pointer}
+  .kvlist{display:grid; grid-template-columns:1fr 1fr auto; gap:6px; align-items:center}
+  .kvitem{display:contents}
+  .delbtn{appearance:none; border:1px solid var(--border); background:#2a1114; color:#ff9aa4; border-radius:8px; padding:6px 8px; cursor:pointer}
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <div class="badge">M</div>
+      <div>MetaWeave</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="themeBtn" title="Toggle theme">Toggle theme</button>
+    <button class="btn ghost" id="loadBtn" title="Load .md">Load .md</button>
+    <input id="fileInput" type="file" accept=".md,.markdown,text/markdown,text/plain" style="display:none" />
+    <button class="btn" id="generateBtn" title="Generate updated Markdown">Generate</button>
+    <button class="btn" id="downloadBtn" title="Download generated .md" disabled>Download</button>
+    <button class="btn" id="resetBtn" title="Reset assignments">Reset</button>
+  </header>
+
+  <main>
+    <aside>
+      <div class="section-title">Create metadata block</div>
+      <div class="field">
+        <label for="blockName">Label</label>
+        <input id="blockName" type="text" placeholder="e.g. General Info (Prescribed NPO)" />
+      </div>
+
+      <div class="field">
+        <div class="kvlist" id="kvList">
+          <input class="key" type="text" placeholder="key (e.g. rule_type)" />
+          <input class="val" type="text" placeholder="value (e.g. general_info)" />
+          <button class="btn" id="addKVBtn" title="Add pair">Add</button>
+        </div>
+        <div class="hint">Add one or more <em>key: value</em> pairs. These are written inside an HTML comment block.
+          Example:
+          <pre style="background:var(--code-bg); padding:8px; border-radius:8px; overflow:auto; margin-top:6px"><code>&lt;!--
+rule_type: general_info
+applies_to: prescribed_npo
+--&gt;</code></pre>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="btn brand" id="createBlockBtn">Create block</button>
+        <button class="btn ghost" id="clearPairsBtn">Clear pairs</button>
+      </div>
+
+      <div class="hr"></div>
+      <div class="section-title">Blocks (drag onto a line)</div>
+      <div id="blockBar" class="bar" aria-label="Block bar"></div>
+
+      <div class="hr"></div>
+      <div class="section-title">Options</div>
+      <div class="field">
+        <label class="row"><input type="checkbox" id="stripExisting" checked /> <span>Strip existing metadata comment blocks on generate</span></label>
+        <label class="row"><input type="checkbox" id="detectExisting" checked /> <span>Auto-detect existing blocks when loading</span></label>
+        <label class="row"><input type="checkbox" id="blankAround" /> <span>Add a blank line after inserted blocks</span></label>
+        <label class="row"><input type="checkbox" id="strongerHighlights" checked /> <span>Use stronger region highlights</span></label>
+      </div>
+
+      <div class="hr"></div>
+      <div class="section-title">Shortcuts</div>
+      <div class="hint"><span class="kbd">Enter</span> add pair • <span class="kbd">⌘/Ctrl+O</span> open file • <span class="kbd">⌘/Ctrl+S</span> download • <span class="kbd">T</span> toggle theme</div>
+
+      <div class="hr"></div>
+      <div class="section-title">Notes</div>
+      <div class="warning">All processing happens locally in your browser. No uploads.</div>
+      <div class="hint" style="margin-top:8px">Need a demo? <span class="ghostlink" id="loadDemo">Load sample</span>.</div>
+    </aside>
+
+    <section class="editor">
+      <div id="status" class="status" style="padding:8px 10px"></div>
+      <div id="lines" class="lines" aria-label="Markdown lines"></div>
+    </section>
+  </main>
+
+  <footer>
+    Tip: Click a gutter block badge to remove that region start. Untagged gaps are left as-is.
+  </footer>
+
+<script>
+(function(){
+  // Theme setup
+  const THEME_KEY = 'metaweave_theme';
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  setTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+
+  const themeBtn = document.getElementById('themeBtn');
+  themeBtn.addEventListener('click', toggleTheme);
+  document.addEventListener('keydown', (e)=>{ if (e.key.toLowerCase()==='t' && !(e.metaKey||e.ctrlKey||e.altKey)){ e.preventDefault(); toggleTheme(); }});
+
+  function toggleTheme(){ const next = (document.body.getAttribute('data-theme')||'dark')==='dark' ? 'light' : 'dark'; setTheme(next); }
+  function setTheme(mode){ document.body.setAttribute('data-theme', mode); localStorage.setItem(THEME_KEY, mode); }
+
+  // State
+  let originalName = 'untitled.md';
+  let originalText = '';
+  let front = null; // {raw, bodyOffset}
+  let bodyLines = [];
+  let assignments = []; // [{line, blockId}]
+  /** blocks: {id, name, kv:Object, color} */
+  let blocks = [];
+  let generatedBlobUrl = null;
+
+  const els = {
+    lines: qs('#lines'), status: qs('#status'), fileInput: qs('#fileInput'), loadBtn: qs('#loadBtn'),
+    generateBtn: qs('#generateBtn'), downloadBtn: qs('#downloadBtn'), resetBtn: qs('#resetBtn'),
+    blockName: qs('#blockName'), kvList: qs('#kvList'), addKVBtn: qs('#addKVBtn'),
+    createBlockBtn: qs('#createBlockBtn'), clearPairsBtn: qs('#clearPairsBtn'), blockBar: qs('#blockBar'),
+    stripExisting: qs('#stripExisting'), detectExisting: qs('#detectExisting'), blankAround: qs('#blankAround'),
+    strongerHighlights: qs('#strongerHighlights'), loadDemo: qs('#loadDemo'),
+  };
+
+  // Events
+  els.loadBtn.addEventListener('click', ()=> els.fileInput.click());
+  els.fileInput.addEventListener('change', handleFile);
+  document.addEventListener('paste', e=>{
+    const t = e.clipboardData?.getData('text/plain');
+    if (t && looksLikeMarkdown(t)) { loadText(t, 'pasted.md'); toast('Pasted text loaded.'); }
+  });
+  document.addEventListener('dragover', e=> e.preventDefault());
+  document.addEventListener('drop', e=>{ e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) readFile(f); });
+
+  els.generateBtn.addEventListener('click', generateOutput);
+  els.downloadBtn.addEventListener('click', downloadOutput);
+  els.resetBtn.addEventListener('click', ()=>{ assignments = []; renderLines(); toast('Assignments cleared.'); });
+
+  els.addKVBtn.addEventListener('click', addKVFromInputs);
+  els.kvList.addEventListener('keydown', e=>{ if (e.key==='Enter'){ e.preventDefault(); addKVFromInputs(); }});
+  els.createBlockBtn.addEventListener('click', createBlockFromKVs);
+  els.clearPairsBtn.addEventListener('click', ()=> clearKVInputs());
+
+  els.loadDemo.addEventListener('click', ()=> loadText(DEMO_MD, 'demo.md'));
+
+  document.addEventListener('keydown', e=>{
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o'){ e.preventDefault(); els.fileInput.click(); }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); if (!els.downloadBtn.disabled) downloadOutput(); }
+  });
+
+  // Helpers
+  function qs(s){ return document.querySelector(s); }
+  function toast(msg){ els.status.textContent = msg; setTimeout(()=> els.status.textContent = '', 3000); }
+
+  function handleFile(e){ const f = e.target.files[0]; if (f) readFile(f); e.target.value = ''; }
+  function readFile(file){ const reader = new FileReader(); reader.onload = () => loadText(String(reader.result || ''), file.name || 'file.md'); reader.readAsText(file); }
+
+  function looksLikeMarkdown(t){ return t.includes('# ') || t.includes('\n- ') || t.includes('```') || t.startsWith('---\n') || t.includes('<!--'); }
+  function normalizeNewlines(s){ return s.replace(/\r\n?/g, '\n'); }
+
+  function extractFrontMatter(text){
+    if (!text.startsWith('---\n')) return null;
+    const end = text.indexOf('\n---', 4);
+    if (end === -1) return null;
+    const tail = text.slice(end+4);
+    const afterIdx = tail.startsWith('\n') ? end+5 : end+4;
+    return { raw: text.slice(0, afterIdx), bodyOffset: afterIdx };
+  }
+
+  function parseAndStripMetadataBlocks(lines){
+    const out = [];
+    const foundAssignments = [];
+    const discoveredBlockIds = [];
+    for (let i=0; i<lines.length; i++){
+      const L = lines[i];
+      if (/^\s*<!--\s*$/.test(L)){
+        // Attempt to read YAML-like key: value lines until -->
+        const kv = {};
+        let j = i+1; let ok = false; let count=0;
+        for (; j<lines.length; j++){
+          const t = lines[j];
+          if (/^\s*-->\s*$/.test(t)){ ok = true; break; }
+          const m = t.match(/^\s*([A-Za-z0-9_\-\.]+)\s*:\s*(.+?)\s*$/);
+          if (!m){ ok = false; break; }
+          kv[m[1]] = m[2];
+          count++;
+        }
+        if (ok && count>0){
+          const blockId = findOrCreateBlockFromKV(kv, /*name*/suggestBlockName(kv));
+          discoveredBlockIds.push(blockId);
+          const startLine = out.length; // start where the block was
+          foundAssignments.push({line:startLine, blockId});
+          i = j; // skip to -->
+          continue; // do not emit these lines
+        }
+      }
+      out.push(L);
+    }
+    return {lines: out, assignments: foundAssignments, blocks: discoveredBlockIds};
+  }
+
+  function splitBody(text, fm, detectExisting){
+    const body = fm ? text.slice(fm.bodyOffset) : text;
+    const rawLines = body.split('\n');
+    if (detectExisting){
+      const parsed = parseAndStripMetadataBlocks(rawLines);
+      bodyLines = parsed.lines;
+      assignments = assignments.concat(parsed.assignments);
+    } else {
+      bodyLines = rawLines;
+    }
+  }
+
+  function loadText(text, name){
+    originalName = name || 'untitled.md';
+    originalText = normalizeNewlines(text);
+    front = extractFrontMatter(originalText);
+    assignments = [];
+    splitBody(originalText, front, document.getElementById('detectExisting').checked);
+    renderLines();
+    renderBlockBar();
+    els.downloadBtn.disabled = true;
+    if (generatedBlobUrl){ URL.revokeObjectURL(generatedBlobUrl); generatedBlobUrl = null; }
+    toast(`Loaded ${originalName} (${bodyLines.length} lines)`);
+  }
+
+  function renderLines(){
+    els.lines.innerHTML = '';
+    const activePerLine = computeActiveBlocks();
+    const strong = els.strongerHighlights.checked;
+    bodyLines.forEach((line, i)=>{
+      const block = activePerLine[i] || null;
+      const div = document.createElement('div');
+      div.className = 'line' + (block ? ' assigned' : '');
+      div.dataset.line = i;
+
+      const gut = document.createElement('div'); gut.className = 'gutter';
+      const lineno = document.createElement('div'); lineno.className = 'lineno'; lineno.textContent = (i+1).toString().padStart(3,' ');
+      gut.appendChild(lineno);
+
+      const startHere = assignments.find(a => a.line === i);
+      if (startHere){
+        const bl = getBlock(startHere.blockId);
+        if (bl){
+          const dot = document.createElement('div'); dot.className = 'tagdot'; dot.style.background = bl.color; gut.appendChild(dot);
+          const lbl = document.createElement('div'); lbl.className = 'taglabel'; lbl.textContent = bl.name;
+          lbl.style.background = colorMix(bl.color, strong ? 0.32 : 0.22);
+          lbl.style.color = readableTextOn(bl.color);
+          lbl.title = 'Click to remove this region start';
+          lbl.addEventListener('click', ()=>{ assignments = assignments.filter(a => !(a.line === i && a.blockId === bl.id)); renderLines(); });
+          gut.appendChild(lbl);
+        }
+      }
+
+      div.addEventListener('dragover', ev=>{ ev.preventDefault(); div.classList.add('drop-target'); });
+      div.addEventListener('dragleave', ()=> div.classList.remove('drop-target'));
+      div.addEventListener('drop', ev=>{ ev.preventDefault(); div.classList.remove('drop-target'); const id = ev.dataTransfer.getData('text/blockId'); if (!id) return; assignBlockAtLine(id, i); });
+
+      const code = document.createElement('div'); code.className = 'code';
+      if (block){ code.style.background = colorMix(block.color, strong ? 0.18 : 0.12); code.style.borderLeftColor = block.color; }
+      code.textContent = line.length ? line : ' ';
+
+      div.appendChild(gut); div.appendChild(code); els.lines.appendChild(div);
+    });
+  }
+
+  function assignBlockAtLine(blockId, line){
+    assignments = assignments.filter(a => a.line !== line); // one start per line
+    assignments.push({line, blockId});
+    assignments.sort((a,b)=> a.line - b.line);
+    renderLines();
+  }
+
+  function computeActiveBlocks(){
+    const blockByLine = {};
+    let current = null; let idx = 0;
+    const sorted = [...assignments].sort((a,b)=> a.line - b.line);
+    for (let i=0; i<bodyLines.length; i++){
+      if (idx < sorted.length && i === sorted[idx].line){ current = getBlock(sorted[idx].blockId); idx++; }
+      blockByLine[i] = current;
+    }
+    return blockByLine;
+  }
+
+  function createBlockFromKVs(){
+    const name = (els.blockName.value || '').trim() || 'Block';
+    const kv = collectKV();
+    if (Object.keys(kv).length === 0){ toast('Add at least one key:value pair.'); return; }
+    const id = 'b_'+hashString(name+'|'+Object.entries(kv).sort().map(([k,v])=>k+':'+v).join(';'));
+    if (blocks.find(b=>b.id===id)){ toast('Block already exists.'); return; }
+    const color = colorFor(id);
+    blocks.push({id, name, kv, color});
+    renderBlockBar();
+    clearKVInputs();
+  }
+
+  function collectKV(){
+    const inputs = els.kvList.querySelectorAll('input');
+    const res = {};
+    for (let i=0; i<inputs.length; i+=2){
+      const k = (inputs[i].value || '').trim();
+      const v = (inputs[i+1] ? inputs[i+1].value : '').trim();
+      if (k){ res[k] = v; }
+    }
+    return res;
+  }
+
+  function addKVFromInputs(){
+    const keys = els.kvList.querySelectorAll('input.key');
+    const lastKey = keys[keys.length-1];
+    const lastVal = els.kvList.querySelectorAll('input.val')[keys.length-1];
+    if (!lastKey.value.trim()){ lastKey.focus(); return; }
+    const k = lastKey.value.trim(); const v = (lastVal.value||'').trim();
+    const row = document.createElement('div'); row.className = 'kvitem';
+    const ko = document.createElement('input'); ko.type='text'; ko.value=k; ko.readOnly=true; ko.style.background='var(--code-bg)'; ko.className='key';
+    const vo = document.createElement('input'); vo.type='text'; vo.value=v; vo.readOnly=true; vo.style.background='var(--code-bg)'; vo.className='val';
+    const del = document.createElement('button'); del.className='delbtn'; del.textContent='Delete'; del.addEventListener('click', ()=>{ row.remove(); });
+    row.appendChild(ko); row.appendChild(vo); row.appendChild(del);
+    els.kvList.insertBefore(row, els.kvList.firstElementChild);
+    lastKey.value=''; lastVal.value=''; lastKey.focus();
+  }
+
+  function clearKVInputs(){
+    els.kvList.innerHTML = '';
+    const key = document.createElement('input'); key.className='key'; key.type='text'; key.placeholder='key (e.g. rule_type)';
+    const val = document.createElement('input'); val.className='val'; val.type='text'; val.placeholder='value (e.g. general_info)';
+    const add = document.createElement('button'); add.className='btn'; add.id='addKVBtn'; add.textContent='Add'; add.title='Add pair';
+    els.kvList.appendChild(key); els.kvList.appendChild(val); els.kvList.appendChild(add);
+    add.addEventListener('click', addKVFromInputs);
+  }
+
+  function renderBlockBar(){
+    els.blockBar.innerHTML = '';
+    blocks.forEach(b=>{
+      const pill = document.createElement('div'); pill.className='pill'; pill.setAttribute('draggable','true'); pill.dataset.blockId=b.id; pill.title = Object.entries(b.kv).map(([k,v])=>`${k}: ${v}`).join('\n');
+      const sw = document.createElement('div'); sw.className='swatch'; sw.style.background = b.color; pill.appendChild(sw);
+      const txt = document.createElement('span'); txt.textContent = b.name; pill.appendChild(txt);
+      const x = document.createElement('span'); x.className='x'; x.textContent='×'; x.title='Remove block'; x.addEventListener('click', (e)=>{ e.stopPropagation(); removeBlock(b.id); }); pill.appendChild(x);
+      pill.addEventListener('dragstart', ev=>{ ev.dataTransfer.setData('text/blockId', b.id); ev.dataTransfer.effectAllowed='copy'; });
+      els.blockBar.appendChild(pill);
+    });
+  }
+
+  function removeBlock(id){
+    blocks = blocks.filter(b=>b.id!==id);
+    assignments = assignments.filter(a=>a.blockId!==id);
+    renderBlockBar(); renderLines(); toast('Removed block');
+  }
+
+  function findOrCreateBlockFromKV(kv, name){
+    const sig = Object.entries(kv).sort().map(([k,v])=>k+':'+v).join(';');
+    let b = blocks.find(x=>Object.entries(x.kv).sort().map(([k,v])=>k+':'+v).join(';')===sig);
+    if (b) return b.id;
+    const id = 'b_'+hashString(sig);
+    b = {id, name: name || 'Block', kv: {...kv}, color: colorFor(id)};
+    blocks.push(b); renderBlockBar(); return id;
+  }
+
+  function suggestBlockName(kv){
+    if (kv.name) return kv.name;
+    const keys = Object.keys(kv);
+    if (!keys.length) return 'Block';
+    const first = keys[0];
+    return `${first}: ${kv[first]}`;
+  }
+
+  function getBlock(id){ return blocks.find(b=>b.id===id) || null; }
+
+  function generateOutput(){
+    if (!originalText){ toast('Load a Markdown file first.'); return; }
+    const baseLines = document.getElementById('stripExisting').checked ? parseAndStripMetadataBlocks([...bodyLines]).lines : [...bodyLines];
+
+    const markersByLine = new Map(assignments.map(a => [a.line, a.blockId]));
+    const outLines = [];
+    for (let i=0; i<baseLines.length; i++){
+      if (markersByLine.has(i)){
+        const b = getBlock(markersByLine.get(i));
+        if (b){
+          outLines.push('<!--');
+          Object.entries(b.kv).forEach(([k,v])=> outLines.push(`${k}: ${v}`));
+          outLines.push('-->');
+          if (document.getElementById('blankAround').checked) outLines.push('');
+        }
+      }
+      outLines.push(baseLines[i]);
+    }
+    const bodyOut = outLines.join('\n');
+    const full = (front ? front.raw : '') + bodyOut;
+
+    if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
+    const blob = new Blob([full], {type:'text/markdown'});
+    generatedBlobUrl = URL.createObjectURL(blob);
+    els.downloadBtn.disabled = false;
+    els.downloadBtn.dataset.href = generatedBlobUrl;
+    els.downloadBtn.dataset.name = suggestOutName(originalName);
+    toast('Generated updated Markdown (ready to download).');
+  }
+
+  function downloadOutput(){ const href = els.downloadBtn.dataset.href; const name = els.downloadBtn.dataset.name || 'tagged.md'; if (!href) return; const a=document.createElement('a'); a.href=href; a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+  function suggestOutName(name){ if (!name) return 'tagged.md'; if (name.toLowerCase().endsWith('.md')) return name.slice(0,-3)+'.tagged.md'; return name+'.tagged.md'; }
+
+  // Util: colours and hashing
+  function colorFor(seed){ let h = hashString(seed) % 360; const s = 72, l = (document.body.getAttribute('data-theme')||'dark')==='dark' ? 52 : 42; return `hsl(${h}deg ${s}% ${l}%)`; }
+  function colorMix(hsl, alpha){
+    // Turn `hsl(x y% z%)` into `hsl(x y% z% / alpha)` for translucent overlays
+    const a = Math.max(0.06, Math.min(0.4, alpha));
+    return hsl.replace('hsl(', 'hsl(').replace(')', ` / ${a})`);
+  }
+  function readableTextOn(hsl){
+    // crude read: if lightness in hsl string looks high, return dark text, else white
+    const m = hsl.match(/\d+deg\s+\d+%\s+(\d+)%/);
+    const l = m ? parseInt(m[1],10) : 50; return l > 55 ? '#0b0f17' : '#ffffff';
+  }
+  function hashString(s){ let h=2166136261>>>0; for (let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+
+  // Demo
+  const DEMO_MD = `---
+title: Example Document
+author: You
+---
+
+# Heading A
+Some intro text here.
+
+## Section One
+Lorem ipsum dolor sit amet.
+
+## Section Two
+Duis aute irure dolor in reprehenderit.
+`;
+
+  // Boot
+  loadText('# Drop a block onto a line to start a coloured region\n\nAdd metadata blocks on the left, then Generate.', 'blank.md');
+})();
+</script>
+</body>
+</html>
