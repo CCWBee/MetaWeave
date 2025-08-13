@@ -172,8 +172,6 @@ applies_to: prescribed_npo
     Tip: 
   </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
 <script>
 (function(){
   // Theme setup
@@ -208,7 +206,6 @@ applies_to: prescribed_npo
       strongerHighlights: qs('#strongerHighlights'), loadDemo: qs('#loadDemo'),
   };
 
-  const md = window.markdownit({html: true, linkify: true});
 
   // Events
   els.loadBtn.addEventListener('click', ()=> els.fileInput.click());
@@ -346,8 +343,7 @@ applies_to: prescribed_npo
 
       const code = document.createElement('div'); code.className = 'code';
       if (block){ code.style.background = colorMix(block.color, strong ? 0.18 : 0.12); code.style.borderLeftColor = block.color; }
-      const html = md.render(line.length ? line : ' ');
-      code.innerHTML = DOMPurify.sanitize(html);
+      code.textContent = line;
 
       div.appendChild(gut); div.appendChild(code); els.lines.appendChild(div);
     });
