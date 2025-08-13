@@ -93,6 +93,9 @@
   label.row input[type="checkbox"]::before{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid var(--border);transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
   label.row input[type="checkbox"]:checked{background:linear-gradient(135deg,var(--accent),var(--accent2))}
   label.row input[type="checkbox"]:checked::before{transform:translateX(16px)}
+  .viewer{padding:12px; border-top:1px solid var(--border); overflow:auto}
+  .viewer table{border-collapse:collapse; margin:8px 0; width:100%}
+  .viewer th, .viewer td{border:1px solid var(--border); padding:4px 8px; text-align:left}
 </style>
 </head>
 <body>
@@ -164,6 +167,7 @@ applies_to: prescribed_npo
     <section class="editor">
       <div id="status" class="status" style="padding:8px 10px"></div>
       <div id="lines" class="lines" aria-label="Markdown lines"></div>
+      <div id="viewer" class="viewer" aria-label="Rendered Markdown"></div>
     </section>
   </main>
 
@@ -171,6 +175,8 @@ applies_to: prescribed_npo
     Tip: Click a gutter block badge to remove that region start. Untagged gaps are left as-is.
   </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
 <script>
 (function(){
   // Theme setup
@@ -197,13 +203,15 @@ applies_to: prescribed_npo
   let generatedBlobUrl = null;
 
   const els = {
-    lines: qs('#lines'), status: qs('#status'), fileInput: qs('#fileInput'), loadBtn: qs('#loadBtn'),
+    lines: qs('#lines'), status: qs('#status'), viewer: qs('#viewer'), fileInput: qs('#fileInput'), loadBtn: qs('#loadBtn'),
     generateBtn: qs('#generateBtn'), downloadBtn: qs('#downloadBtn'), resetBtn: qs('#resetBtn'),
     blockName: qs('#blockName'), kvList: qs('#kvList'), addKVBtn: qs('#addKVBtn'),
     createBlockBtn: qs('#createBlockBtn'), clearPairsBtn: qs('#clearPairsBtn'), blockBar: qs('#blockBar'),
     stripExisting: qs('#stripExisting'), detectExisting: qs('#detectExisting'), blankAround: qs('#blankAround'),
     strongerHighlights: qs('#strongerHighlights'), loadDemo: qs('#loadDemo'),
   };
+
+  const md = window.markdownit({html: true, linkify: true});
 
   // Events
   els.loadBtn.addEventListener('click', ()=> els.fileInput.click());
@@ -302,9 +310,16 @@ applies_to: prescribed_npo
     splitBody(originalText, front, document.getElementById('detectExisting').checked);
     renderLines();
     renderBlockBar();
+    renderPreview();
     els.downloadBtn.disabled = true;
     if (generatedBlobUrl){ URL.revokeObjectURL(generatedBlobUrl); generatedBlobUrl = null; }
     toast(`Loaded ${originalName} (${bodyLines.length} lines)`);
+  }
+
+  function renderPreview(){
+    if (!els.viewer) return;
+    const html = md.render(bodyLines.join('\n'));
+    els.viewer.innerHTML = DOMPurify.sanitize(html);
   }
 
   function renderLines(){
