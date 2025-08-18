@@ -78,7 +78,8 @@
   .gutter{border-right:1px solid var(--border); color:var(--muted); padding:2px 8px; display:flex; align-items:center; gap:8px; background:transparent}
   .lineno{font-variant-numeric: tabular-nums; font-size:12px; opacity:.85; width:40px}
   .tagdot{width:12px; height:12px; border-radius:50%; border:2px solid #0006}
-  .taglabel{font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); background:var(--chip)}
+  .taglabel{display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); background:var(--chip)}
+  .taglabel .x{opacity:.9; font-weight:700; cursor:pointer}
   .code{white-space:pre-wrap; padding:6px 12px; border-left:5px solid transparent; background:transparent}
   .line.drop-target .code{outline:2px solid var(--drop); outline-offset:-2px; box-shadow: inset 0 0 0 9999px color-mix(in hsl, var(--drop) 10%, transparent); border-left-color: var(--drop)}
   .line.assigned .code{background:linear-gradient(90deg, color-mix(in hsl,var(--rail) 14%, transparent), transparent 60%)}
@@ -226,7 +227,7 @@ applies_to: prescribed_npo
   els.createBlockBtn.addEventListener('click', createBlockFromKVs);
   els.clearPairsBtn.addEventListener('click', ()=> clearKVInputs());
 
-  els.loadDemo.addEventListener('click', ()=> loadText(DEMO_MD, 'demo.md'));
+  els.loadDemo.addEventListener('click', loadDemo);
 
   document.addEventListener('keydown', e=>{
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o'){ e.preventDefault(); els.fileInput.click(); }
@@ -327,12 +328,37 @@ applies_to: prescribed_npo
       if (startHere){
         const bl = getBlock(startHere.blockId);
         if (bl){
-          const dot = document.createElement('div'); dot.className = 'tagdot'; dot.style.background = bl.color; gut.appendChild(dot);
-          const lbl = document.createElement('div'); lbl.className = 'taglabel'; lbl.textContent = bl.name;
-          lbl.style.background = colorMix(bl.color, strong ? 0.32 : 0.22);
+          const dot = document.createElement('div');
+          dot.className = 'tagdot';
+          dot.style.background = bl.color;
+          gut.appendChild(dot);
+
+          const lbl = document.createElement('div');
+          lbl.className = 'taglabel';
+          lbl.style.background = bl.color;
           lbl.style.color = readableTextOn(bl.color);
-          lbl.title = 'Click to remove this region start';
-          lbl.addEventListener('click', ()=>{ assignments = assignments.filter(a => !(a.line === i && a.blockId === bl.id)); renderLines(); });
+          lbl.title = 'Click or × to remove this region start';
+
+          const txt = document.createElement('span');
+          txt.textContent = bl.name;
+          lbl.appendChild(txt);
+
+          const x = document.createElement('span');
+          x.className = 'x';
+          x.textContent = '×';
+          x.title = 'Remove tag';
+          x.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            assignments = assignments.filter(a => !(a.line === i && a.blockId === bl.id));
+            renderLines();
+          });
+          lbl.appendChild(x);
+
+          lbl.addEventListener('click', ()=>{
+            assignments = assignments.filter(a => !(a.line === i && a.blockId === bl.id));
+            renderLines();
+          });
+
           gut.appendChild(lbl);
         }
       }
@@ -505,14 +531,38 @@ author: You
 ---
 
 # Heading A
-Some intro text here.
+This is some intro text.
 
 ## Section One
-Lorem ipsum dolor sit amet.
+Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 
 ## Section Two
-Duis aute irure dolor in reprehenderit.
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+
+## Section Three
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 `;
+
+  const DEMO_BLOCKS = [
+    {id:'b_demo_intro', name:'Intro', kv:{section:'intro'}, color:colorFor('b_demo_intro')},
+    {id:'b_demo_topic', name:'Topic', kv:{section:'topic'}, color:colorFor('b_demo_topic')},
+    {id:'b_demo_note', name:'Note', kv:{section:'note'}, color:colorFor('b_demo_note')}
+  ];
+
+  const DEMO_ASSIGNMENTS = [
+    {line:1, blockId:'b_demo_intro'},
+    {line:4, blockId:'b_demo_topic'},
+    {line:7, blockId:'b_demo_note'}
+  ];
+
+  function loadDemo(){
+    loadText(DEMO_MD, 'demo.md');
+    blocks = [...DEMO_BLOCKS];
+    assignments = [...DEMO_ASSIGNMENTS];
+    renderBlockBar();
+    renderLines();
+    toast('Loaded demo with sample tags.');
+  }
 
   // Boot
   loadText('# Drop a block onto a line to start a coloured region\n\nAdd metadata blocks on the left, then Generate.', 'blank.md');
