@@ -194,9 +194,13 @@ applies_to: prescribed_npo
   let front = null; // {raw, bodyOffset}
   let bodyLines = [];
   let assignments = []; // [{line, blockId}]
-  /** blocks: {id, name, kv:Object, color} */
+  /** blocks: {id, name, kv:Object} (colour via colorFor) */
   let blocks = [];
   let generatedBlobUrl = null;
+
+  const GOLDEN_ANGLE = 137.508; // used for colour spacing
+  const usedHues = [];
+  const idToHueIdx = new Map();
 
   const els = {
     lines: qs('#lines'), status: qs('#status'), fileInput: qs('#fileInput'), loadBtn: qs('#loadBtn'),
@@ -328,15 +332,16 @@ applies_to: prescribed_npo
       if (startHere){
         const bl = getBlock(startHere.blockId);
         if (bl){
+          const color = colorFor(bl.id);
           const dot = document.createElement('div');
           dot.className = 'tagdot';
-          dot.style.background = bl.color;
+          dot.style.background = color;
           gut.appendChild(dot);
 
           const lbl = document.createElement('div');
           lbl.className = 'taglabel';
-          lbl.style.background = bl.color;
-          lbl.style.color = readableTextOn(bl.color);
+          lbl.style.background = color;
+          lbl.style.color = readableTextOn(color);
           lbl.title = 'Click or × to remove this region start';
 
           const txt = document.createElement('span');
@@ -368,7 +373,11 @@ applies_to: prescribed_npo
       div.addEventListener('drop', ev=>{ ev.preventDefault(); div.classList.remove('drop-target'); const id = ev.dataTransfer.getData('text/blockId'); if (!id) return; assignBlockAtLine(id, i); });
 
       const code = document.createElement('div'); code.className = 'code';
-      if (block){ code.style.background = colorMix(block.color, strong ? 0.18 : 0.12); code.style.borderLeftColor = block.color; }
+      if (block){
+        const color = colorFor(block.id);
+        code.style.background = colorMix(color, strong ? 0.18 : 0.12);
+        code.style.borderLeftColor = color;
+      }
       code.textContent = line;
 
       div.appendChild(gut); div.appendChild(code); els.lines.appendChild(div);
@@ -399,8 +408,8 @@ applies_to: prescribed_npo
     if (Object.keys(kv).length === 0){ toast('Add at least one key:value pair.'); return; }
     const id = 'b_'+hashString(name+'|'+Object.entries(kv).sort().map(([k,v])=>k+':'+v).join(';'));
     if (blocks.find(b=>b.id===id)){ toast('Block already exists.'); return; }
-    const color = colorFor(id);
-    blocks.push({id, name, kv, color});
+    colorFor(id);
+    blocks.push({id, name, kv});
     renderBlockBar();
     clearKVInputs();
   }
@@ -444,7 +453,8 @@ applies_to: prescribed_npo
     els.blockBar.innerHTML = '';
     blocks.forEach(b=>{
       const pill = document.createElement('div'); pill.className='pill'; pill.setAttribute('draggable','true'); pill.dataset.blockId=b.id; pill.title = Object.entries(b.kv).map(([k,v])=>`${k}: ${v}`).join('\n');
-      const sw = document.createElement('div'); sw.className='swatch'; sw.style.background = b.color; pill.appendChild(sw);
+      const color = colorFor(b.id);
+      const sw = document.createElement('div'); sw.className='swatch'; sw.style.background = color; pill.appendChild(sw);
       const txt = document.createElement('span'); txt.textContent = b.name; pill.appendChild(txt);
       const x = document.createElement('span'); x.className='x'; x.textContent='×'; x.title='Remove block'; x.addEventListener('click', (e)=>{ e.stopPropagation(); removeBlock(b.id); }); pill.appendChild(x);
       pill.addEventListener('dragstart', ev=>{ ev.dataTransfer.setData('text/blockId', b.id); ev.dataTransfer.effectAllowed='copy'; });
@@ -463,7 +473,8 @@ applies_to: prescribed_npo
     let b = blocks.find(x=>Object.entries(x.kv).sort().map(([k,v])=>k+':'+v).join(';')===sig);
     if (b) return b.id;
     const id = 'b_'+hashString(sig);
-    b = {id, name: name || 'Block', kv: {...kv}, color: colorFor(id)};
+    colorFor(id);
+    b = {id, name: name || 'Block', kv: {...kv}};
     blocks.push(b); renderBlockBar(); return id;
   }
 
@@ -511,7 +522,20 @@ applies_to: prescribed_npo
   function suggestOutName(name){ if (!name) return 'tagged.md'; if (name.toLowerCase().endsWith('.md')) return name.slice(0,-3)+'.tagged.md'; return name+'.tagged.md'; }
 
   // Util: colours and hashing
-  function colorFor(seed){ let h = hashString(seed) % 360; const s = 72, l = (document.body.getAttribute('data-theme')||'dark')==='dark' ? 52 : 42; return `hsl(${h}deg ${s}% ${l}%)`; }
+  function colorFor(id){
+    let idx;
+    if (idToHueIdx.has(id)){
+      idx = idToHueIdx.get(id);
+    } else {
+      const h = (usedHues.length * GOLDEN_ANGLE) % 360;
+      idx = usedHues.push(h) - 1;
+      idToHueIdx.set(id, idx);
+    }
+    const h = usedHues[idx];
+    const s = 72;
+    const l = (document.body.getAttribute('data-theme')||'dark')==='dark' ? 52 : 42;
+    return `hsl(${h}deg ${s}% ${l}%)`;
+  }
   function colorMix(hsl, alpha){
     // Turn `hsl(x y% z%)` into `hsl(x y% z% / alpha)` for translucent overlays
     const a = Math.max(0.06, Math.min(0.4, alpha));
@@ -543,11 +567,12 @@ Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu 
 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 `;
 
-  const DEMO_BLOCKS = [
-    {id:'b_demo_intro', name:'Intro', kv:{section:'intro'}, color:colorFor('b_demo_intro')},
-    {id:'b_demo_topic', name:'Topic', kv:{section:'topic'}, color:colorFor('b_demo_topic')},
-    {id:'b_demo_note', name:'Note', kv:{section:'note'}, color:colorFor('b_demo_note')}
-  ];
+    const DEMO_BLOCKS = [
+      {id:'b_demo_intro', name:'Intro', kv:{section:'intro'}},
+      {id:'b_demo_topic', name:'Topic', kv:{section:'topic'}},
+      {id:'b_demo_note', name:'Note', kv:{section:'note'}}
+    ];
+    DEMO_BLOCKS.forEach(b=>colorFor(b.id));
 
   const DEMO_ASSIGNMENTS = [
     {line:1, blockId:'b_demo_intro'},
