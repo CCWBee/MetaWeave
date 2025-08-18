@@ -148,7 +148,6 @@ applies_to: prescribed_npo
       <div class="hr"></div>
         <div class="section-title">Options</div>
         <div class="field">
-          <label class="row"><span>Auto-detect existing blocks when loading</span><input type="checkbox" id="detectExisting" checked /></label>
           <label class="row"><span>Add a blank line after inserted blocks</span><input type="checkbox" id="blankAround" /></label>
           <label class="row"><span>Use stronger region highlights</span><input type="checkbox" id="strongerHighlights" checked /></label>
         </div>
@@ -207,7 +206,7 @@ applies_to: prescribed_npo
     generateBtn: qs('#generateBtn'), downloadBtn: qs('#downloadBtn'), resetBtn: qs('#resetBtn'),
       blockName: qs('#blockName'), kvList: qs('#kvList'), addKVBtn: qs('#addKVBtn'),
       createBlockBtn: qs('#createBlockBtn'), clearPairsBtn: qs('#clearPairsBtn'), blockBar: qs('#blockBar'),
-      detectExisting: qs('#detectExisting'), blankAround: qs('#blankAround'),
+      blankAround: qs('#blankAround'),
       strongerHighlights: qs('#strongerHighlights'), loadDemo: qs('#loadDemo'),
   };
 
@@ -289,16 +288,12 @@ applies_to: prescribed_npo
     return {lines: out, assignments: foundAssignments, blocks: discoveredBlockIds};
   }
 
-  function splitBody(text, fm, detectExisting){
+  function splitBody(text, fm){
     const body = fm ? text.slice(fm.bodyOffset) : text;
     const rawLines = body.split('\n');
-    if (detectExisting){
-      const parsed = parseAndStripMetadataBlocks(rawLines);
-      bodyLines = parsed.lines;
-      assignments = assignments.concat(parsed.assignments);
-    } else {
-      bodyLines = rawLines;
-    }
+    const parsed = parseAndStripMetadataBlocks(rawLines);
+    bodyLines = parsed.lines;
+    assignments = assignments.concat(parsed.assignments);
   }
 
   function loadText(text, name){
@@ -306,7 +301,7 @@ applies_to: prescribed_npo
     originalText = normalizeNewlines(text);
     front = extractFrontMatter(originalText);
     assignments = [];
-    splitBody(originalText, front, document.getElementById('detectExisting').checked);
+    splitBody(originalText, front);
     renderLines();
     renderBlockBar();
     els.downloadBtn.disabled = true;
