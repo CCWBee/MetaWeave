@@ -108,8 +108,7 @@
     <button class="btn ghost" id="themeBtn" title="Toggle theme">Toggle theme</button>
     <button class="btn ghost" id="loadBtn" title="Load .md">Load .md</button>
     <input id="fileInput" type="file" accept=".md,.markdown,text/markdown,text/plain" style="display:none" />
-    <button class="btn" id="generateBtn" title="Generate updated Markdown">Generate</button>
-    <button class="btn" id="downloadBtn" title="Download generated .md" disabled>Download</button>
+    <button class="btn" id="downloadBtn" title="Generate and download .md">Download</button>
     <button class="btn" id="resetBtn" title="Reset assignments">Reset</button>
   </header>
 
@@ -203,7 +202,7 @@ applies_to: prescribed_npo
 
   const els = {
     lines: qs('#lines'), status: qs('#status'), fileInput: qs('#fileInput'), loadBtn: qs('#loadBtn'),
-    generateBtn: qs('#generateBtn'), downloadBtn: qs('#downloadBtn'), resetBtn: qs('#resetBtn'),
+    downloadBtn: qs('#downloadBtn'), resetBtn: qs('#resetBtn'),
       blockName: qs('#blockName'), kvList: qs('#kvList'), addKVBtn: qs('#addKVBtn'),
       createBlockBtn: qs('#createBlockBtn'), clearPairsBtn: qs('#clearPairsBtn'), blockBar: qs('#blockBar'),
       blankAround: qs('#blankAround'),
@@ -221,7 +220,6 @@ applies_to: prescribed_npo
   document.addEventListener('dragover', e=> e.preventDefault());
   document.addEventListener('drop', e=>{ e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) readFile(f); });
 
-  els.generateBtn.addEventListener('click', generateOutput);
   els.downloadBtn.addEventListener('click', downloadOutput);
   els.resetBtn.addEventListener('click', ()=>{ assignments = []; renderLines(); toast('Assignments cleared.'); });
 
@@ -234,7 +232,7 @@ applies_to: prescribed_npo
 
   document.addEventListener('keydown', e=>{
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o'){ e.preventDefault(); els.fileInput.click(); }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); if (!els.downloadBtn.disabled) downloadOutput(); }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); downloadOutput(); }
   });
 
   // Helpers
@@ -304,7 +302,6 @@ applies_to: prescribed_npo
     splitBody(originalText, front);
     renderLines();
     renderBlockBar();
-    els.downloadBtn.disabled = true;
     if (generatedBlobUrl){ URL.revokeObjectURL(generatedBlobUrl); generatedBlobUrl = null; }
     toast(`Loaded ${originalName} (${bodyLines.length} lines)`);
   }
@@ -507,13 +504,20 @@ applies_to: prescribed_npo
     if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
     const blob = new Blob([full], {type:'text/markdown'});
     generatedBlobUrl = URL.createObjectURL(blob);
-    els.downloadBtn.disabled = false;
-    els.downloadBtn.dataset.href = generatedBlobUrl;
-    els.downloadBtn.dataset.name = suggestOutName(originalName);
-    toast('Generated updated Markdown (ready to download).');
+    return { href: generatedBlobUrl, name: suggestOutName(originalName) };
   }
 
-  function downloadOutput(){ const href = els.downloadBtn.dataset.href; const name = els.downloadBtn.dataset.name || 'tagged.md'; if (!href) return; const a=document.createElement('a'); a.href=href; a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+  function downloadOutput(){
+    const result = generateOutput();
+    if (!result) return;
+    const a=document.createElement('a');
+    a.href=result.href;
+    a.download=result.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('Downloaded updated Markdown.');
+  }
   function suggestOutName(name){ if (!name) return 'tagged.md'; if (name.toLowerCase().endsWith('.md')) return name.slice(0,-3)+'.tagged.md'; return name+'.tagged.md'; }
 
   // Util: colours and hashing
