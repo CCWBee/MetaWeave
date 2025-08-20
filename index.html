@@ -518,7 +518,12 @@ applies_to: prescribed_npo
     a.remove();
     toast('Downloaded updated Markdown.');
   }
-  function suggestOutName(name){ if (!name) return 'tagged.md'; if (name.toLowerCase().endsWith('.md')) return name.slice(0,-3)+'.tagged.md'; return name+'.tagged.md'; }
+  function suggestOutName(name){
+    const suffix = 'TAGGED';
+    if (!name) return suffix + '.md';
+    if (name.toLowerCase().endsWith('.md')) return name.slice(0, -3) + suffix + '.md';
+    return name + suffix + '.md';
+  }
 
   // Util: colours and hashing
   function colorFor(id){
