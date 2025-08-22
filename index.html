@@ -96,7 +96,12 @@
   label.row input[type="checkbox"]::before{content:'';position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid var(--border);transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
   label.row input[type="checkbox"]:checked{background:linear-gradient(135deg,var(--accent),var(--accent2))}
   label.row input[type="checkbox"]:checked::before{transform:translateX(16px)}
+
+  /* Better table spacing */
+  table{width:100%;border-collapse:collapse;table-layout:auto}
+  th,td{padding:8px 12px;border:1px solid var(--border);text-align:left}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 <body>
   <header>
@@ -158,6 +163,13 @@ applies_to: prescribed_npo
       <div id="blockBar" class="bar" aria-label="Block bar"></div>
 
       <div class="hr"></div>
+      <div class="section-title">Insert snippet</div>
+      <div class="field">
+        <textarea id="insertText" rows="3" placeholder="Markdown snippet"></textarea>
+        <button class="btn" id="insertBtn">Insert</button>
+      </div>
+
+      <div class="hr"></div>
         <div class="section-title">Options</div>
         <div class="field">
           <label class="row"><span>Add a blank line after inserted blocks</span><input type="checkbox" id="blankAround" /></label>
@@ -186,6 +198,7 @@ applies_to: prescribed_npo
 
 <script>
 (function(){
+  if (window.mermaid) { mermaid.initialize({ startOnLoad: true }); }
   // Theme setup
   const THEME_KEY = 'metaweave_theme';
   const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -222,6 +235,7 @@ applies_to: prescribed_npo
       createBlockBtn: qs('#createBlockBtn'), clearPairsBtn: qs('#clearPairsBtn'), blockBar: qs('#blockBar'),
       blankAround: qs('#blankAround'),
       strongerHighlights: qs('#strongerHighlights'), loadDemo: qs('#loadDemo'),
+      insertText: qs('#insertText'), insertBtn: qs('#insertBtn'),
   };
 
 
@@ -249,6 +263,16 @@ applies_to: prescribed_npo
   els.kvList.addEventListener('keydown', e=>{ if (e.key==='Enter'){ e.preventDefault(); addKVFromInputs(); }});
   els.createBlockBtn.addEventListener('click', createBlockFromKVs);
   els.clearPairsBtn.addEventListener('click', ()=> clearKVInputs());
+
+  els.insertBtn.addEventListener('click', ()=>{
+    const txt = (els.insertText.value || '').trim();
+    if(!txt){ toast('Nothing to insert.'); return; }
+    const lines = txt.split(/\r?\n/);
+    bodyLines.splice(bodyLines.length, 0, ...lines);
+    renderLines();
+    els.insertText.value = '';
+    toast('Snippet inserted.');
+  });
 
   els.loadDemo.addEventListener('click', loadDemo);
 
@@ -417,6 +441,7 @@ applies_to: prescribed_npo
 
       div.appendChild(gut); div.appendChild(code); els.lines.appendChild(div);
     });
+    if (window.mermaid) { try { mermaid.run({nodes: els.lines}); } catch(e){} }
   }
 
   function assignBlockAtLine(blockId, line){
