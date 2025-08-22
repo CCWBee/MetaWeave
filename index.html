@@ -108,12 +108,25 @@
     <button class="btn ghost" id="themeBtn" title="Toggle theme">Toggle theme</button>
     <button class="btn ghost" id="loadBtn" title="Load .md">Load .md</button>
     <input id="fileInput" type="file" accept=".md,.markdown,text/markdown,text/plain" style="display:none" />
+    <button class="btn ghost" id="frontBtn" title="Edit front matter">Frontmatter</button>
     <button class="btn" id="downloadBtn" title="Generate and download .md">Download</button>
     <button class="btn" id="resetBtn" title="Reset assignments">Reset</button>
   </header>
 
   <main>
     <aside>
+      <div id="frontmatterSection" style="display:none">
+        <div class="section-title">Frontmatter</div>
+        <div class="field">
+          <div class="kvlist" id="frontForm">
+            <input id="frontKey" type="text" placeholder="Field" />
+            <input id="frontVal" type="text" placeholder="Value" />
+            <button class="btn" id="frontAddBtn" title="Add pair">Add</button>
+          </div>
+          <div class="kvlist" id="frontPairs"></div>
+        </div>
+        <div class="hr"></div>
+      </div>
       <div class="section-title">Create metadata block</div>
       <div class="field">
         <label for="blockName">Label</label>
@@ -190,6 +203,7 @@ applies_to: prescribed_npo
   let originalName = 'untitled.md';
   let originalText = '';
   let front = null; // {raw, bodyOffset}
+  let frontPairs = [];
   let bodyLines = [];
   let assignments = []; // [{line, blockId}]
   /** blocks: {id, name, kv:Object} (colour via colorFor) */
@@ -202,6 +216,7 @@ applies_to: prescribed_npo
 
   const els = {
     lines: qs('#lines'), status: qs('#status'), fileInput: qs('#fileInput'), loadBtn: qs('#loadBtn'),
+    frontBtn: qs('#frontBtn'), frontSection: qs('#frontmatterSection'), frontKey: qs('#frontKey'), frontVal: qs('#frontVal'), frontAdd: qs('#frontAddBtn'), frontPairs: qs('#frontPairs'),
     downloadBtn: qs('#downloadBtn'), resetBtn: qs('#resetBtn'),
       blockName: qs('#blockName'), kvList: qs('#kvList'), addKVBtn: qs('#addKVBtn'),
       createBlockBtn: qs('#createBlockBtn'), clearPairsBtn: qs('#clearPairsBtn'), blockBar: qs('#blockBar'),
@@ -222,6 +237,13 @@ applies_to: prescribed_npo
 
   els.downloadBtn.addEventListener('click', downloadOutput);
   els.resetBtn.addEventListener('click', ()=>{ assignments = []; renderLines(); toast('Assignments cleared.'); });
+
+  els.frontBtn.addEventListener('click', ()=>{
+    const show = els.frontSection.style.display === 'none';
+    els.frontSection.style.display = show ? 'block' : 'none';
+    if (show) renderFrontPairs();
+  });
+  els.frontAdd.addEventListener('click', addFrontPair);
 
   els.addKVBtn.addEventListener('click', addKVFromInputs);
   els.kvList.addEventListener('keydown', e=>{ if (e.key==='Enter'){ e.preventDefault(); addKVFromInputs(); }});
@@ -252,6 +274,25 @@ applies_to: prescribed_npo
     const tail = text.slice(end+4);
     const afterIdx = tail.startsWith('\n') ? end+5 : end+4;
     return { raw: text.slice(0, afterIdx), bodyOffset: afterIdx };
+  }
+
+  function parseFrontPairs(raw){
+    const lines = raw.split('\n').slice(1); // skip leading ---
+    const pairs = [];
+    for (const line of lines){
+      if (line.trim() === '---') break;
+      const m = line.match(/^\s*([A-Za-z0-9_\-\.]+)\s*:\s*(.+)\s*$/);
+      if (m) pairs.push({k:m[1], v:m[2]});
+    }
+    return pairs;
+  }
+
+  function buildFrontMatter(pairs){
+    if (!pairs.length) return '';
+    const lines = ['---'];
+    pairs.forEach(p => lines.push(`${p.k}: ${p.v}`));
+    lines.push('---');
+    return lines.join('\n') + '\n';
   }
 
   function parseAndStripMetadataBlocks(lines){
@@ -298,10 +339,12 @@ applies_to: prescribed_npo
     originalName = name || 'untitled.md';
     originalText = normalizeNewlines(text);
     front = extractFrontMatter(originalText);
+    frontPairs = front ? parseFrontPairs(front.raw) : [];
     assignments = [];
     splitBody(originalText, front);
     renderLines();
     renderBlockBar();
+    if (els.frontSection.style.display !== 'none') renderFrontPairs();
     if (generatedBlobUrl){ URL.revokeObjectURL(generatedBlobUrl); generatedBlobUrl = null; }
     toast(`Loaded ${originalName} (${bodyLines.length} lines)`);
   }
@@ -417,6 +460,31 @@ applies_to: prescribed_npo
     return res;
   }
 
+  function renderFrontPairs(){
+    els.frontPairs.innerHTML = '';
+    frontPairs.forEach((p, i)=>{
+      const row = document.createElement('div'); row.className = 'kvitem';
+      const k = document.createElement('input'); k.type='text'; k.className='key'; k.value=p.k;
+      k.addEventListener('input',()=> frontPairs[i].k = k.value);
+      const v = document.createElement('input'); v.type='text'; v.className='val'; v.value=p.v;
+      v.addEventListener('input',()=> frontPairs[i].v = v.value);
+      const del = document.createElement('button'); del.className='delbtn'; del.textContent='×';
+      del.addEventListener('click',()=>{ frontPairs.splice(i,1); renderFrontPairs(); });
+      row.appendChild(k); row.appendChild(v); row.appendChild(del);
+      els.frontPairs.appendChild(row);
+    });
+  }
+
+  function addFrontPair(){
+    const k = (els.frontKey.value || '').trim();
+    const v = (els.frontVal.value || '').trim();
+    if (!k || !v) return;
+    frontPairs.push({k,v});
+    els.frontKey.value='';
+    els.frontVal.value='';
+    renderFrontPairs();
+  }
+
   function addKVFromInputs(){
     const keys = els.kvList.querySelectorAll('input.key');
     const lastKey = keys[keys.length-1];
@@ -499,7 +567,8 @@ applies_to: prescribed_npo
       outLines.push(baseLines[i]);
     }
     const bodyOut = outLines.join('\n');
-    const full = (front ? front.raw : '') + bodyOut;
+    const fmText = buildFrontMatter(frontPairs);
+    const full = fmText + bodyOut;
 
     if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
     const blob = new Blob([full], {type:'text/markdown'});
